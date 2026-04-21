@@ -171,6 +171,9 @@
   <button class="tbtn" id="btn-export" onclick="exportGPX()" disabled>
     <span class="ico">📤</span>Export
   </button>
+  <button class="tbtn" id="btn-clear" onclick="clearAllData()" style="flex:0.6;">
+    <span class="ico">🗑️</span>Effacer
+  </button>
 </div>
 
 <!-- MODAL POINT -->
@@ -365,7 +368,7 @@ function stopTrack() {
   if (trackCoords.length >= 2) {
     tracks.push({coords:[...trackCoords], name:currentTrackMeta.name, comment:currentTrackMeta.comment});
     showToast(currentTrackMeta.name+' sauvegardée — '+formatDist(totalDist(trackCoords)));
-    checkExport();
+    checkExport(); saveData();
   } else {
     showToast('Pas assez de points');
     if (trackPolyline) { map.removeLayer(trackPolyline); trackPolyline=null; }
@@ -435,7 +438,7 @@ function confirmPoint() {
   L.marker(pendingPointLatLng,{icon}).bindPopup(popupContent).addTo(map);
   const badge = document.getElementById('badge-point');
   badge.style.display='block'; badge.textContent=points.length;
-  checkExport();
+  checkExport(); saveData();
   showToast(name+' épinglé');
   pendingPointLatLng = null;
 }
@@ -473,6 +476,46 @@ function exportGPX() {
 function escXml(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function checkExport() { document.getElementById('btn-export').disabled=(points.length===0&&tracks.length===0); }
 
+// SAUVEGARDE LOCALE
+function saveData() {
+  try { localStorage.setItem('cf_points', JSON.stringify(points)); localStorage.setItem('cf_tracks', JSON.stringify(tracks)); } catch(e) {}
+}
+
+function loadData() {
+  try {
+    const savedPoints = JSON.parse(localStorage.getItem('cf_points') || '[]');
+    const savedTracks = JSON.parse(localStorage.getItem('cf_tracks') || '[]');
+
+    savedPoints.forEach(p => {
+      points.push(p);
+      const icon = L.divIcon({html:'<div style="background:#e53935;color:white;border:2px solid white;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,0.4)">'+p.id+'</div>',iconSize:[28,28],iconAnchor:[14,14]});
+      const popup = '<b>'+p.name+'</b>'+(p.comment?'<br><i>'+p.comment+'</i>':'')+'<br><small>'+p.lat.toFixed(6)+', '+p.lng.toFixed(6)+'</small>';
+      L.marker([p.lat,p.lng],{icon}).bindPopup(popup).addTo(map);
+    });
+
+    savedTracks.forEach(t => {
+      tracks.push(t);
+      L.polyline(t.coords,{color:'#e53935',weight:4,opacity:0.85})
+        .bindPopup('<b>'+t.name+'</b>'+(t.comment?'<br><i>'+t.comment+'</i>':'')+'<br><small>'+formatDist(totalDist(t.coords))+'</small>')
+        .addTo(map);
+    });
+
+    if (savedPoints.length > 0) {
+      const badge = document.getElementById('badge-point');
+      badge.style.display='block'; badge.textContent=savedPoints.length;
+    }
+    checkExport();
+    if (savedPoints.length+savedTracks.length > 0)
+      showToast(savedPoints.length+' point(s) et '+savedTracks.length+' ligne(s) rechargé(s)');
+  } catch(e) {}
+}
+
+function clearAllData() {
+  if (!confirm('Effacer tous les points et lignes sauvegardés?')) return;
+  localStorage.removeItem('cf_points'); localStorage.removeItem('cf_tracks');
+  showToast('Données effacées — rechargez la page');
+}
+
 // GEO MATH
 function haversine(lat1,lng1,lat2,lng2) {
   const R=6371000,r=Math.PI/180,dLat=(lat2-lat1)*r,dLng=(lng2-lng1)*r;
@@ -495,6 +538,9 @@ function showInfo(txt){const el=document.getElementById('infobox');el.innerHTML=
 function hideInfo(){document.getElementById('infobox').style.display='none';}
 let toastTimer;
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),2800);}
+
+// DÉMARRAGE
+loadData();
 </script>
 </body>
 </html>
